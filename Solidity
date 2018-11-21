@@ -1,0 +1,133 @@
+pragma solidity ^0.4.24;
+
+contract GAorganinzer {
+    
+    // state variables
+    
+    // das hier ist Aufbau eines GAs
+    struct GA {
+        int id;
+        int numUsers;
+        int maxNumberOfUsers;
+        mapping (address => User) users;
+    }
+   
+    
+    // das hier ist Liste/Anzahl aller GAs
+    mapping (int => GA) GAs;
+    int public numGAs;
+
+    
+    // das hier ist Aufbau eines Users
+    struct User {
+        address userAddress;
+        bool isOwner;
+        bool isAdmin;
+        bool isCurrentUser;
+    }   
+    
+    // events
+    // still missing
+    
+    
+    // modifiers
+    
+    // nur Owner
+    modifier onlyOwner (int _GAid) {
+        require(GAs[_GAid].users[msg.sender].isOwner == true);
+        _;
+    }
+    
+    // nur Admin
+    modifier onlyAdmin (int _GAid) {
+        require(GAs[_GAid].users[msg.sender].isAdmin == true);
+        _;
+    }
+    
+    
+    // Aktion kann nur ausgeführt werden, wenn max Anzahl User noch nicht erreicht
+    modifier belowMaxUsers (int _GAid) {
+        require(GAs[_GAid].numUsers < GAs[_GAid].maxNumberOfUsers);
+        _;
+    }
+    
+    // Aktion kann nur ausgeführt werden, wenn User noch nicht Teil desselben GAs ist
+    modifier notAlreadyUser(int _GAid, address _newUserAddress) {
+        require(GAs[_GAid].users[_newUserAddress].userAddress == address(0));
+        _;
+    }
+    
+    // Aktion kann nur ausgeführt werden, wenn User bereits Teil desselben GAs ist
+    modifier alreadyUser(int _GAid, address _newCurrentUserAddress) {
+        require(GAs[_GAid].users[_newCurrentUserAddress].userAddress != address(0));
+        _;
+    }
+   
+    
+    // functions
+    
+    // das hier ist der einmalige Kauf Vorgang
+    function buyGA (int _maxNumberOfUsers) public {
+        int newGAid = ++numGAs;
+        
+        GA newGA = GAs[newGAid];
+        newGA.id = newGAid;
+        newGA.numUsers++;
+        require(_maxNumberOfUsers > 0);
+        newGA.maxNumberOfUsers = _maxNumberOfUsers;
+        
+        User user = newGA.users[msg.sender];
+        user.userAddress = msg.sender;
+        user.isOwner = true;
+        user.isAdmin = true;
+        user.isCurrentUser = true;
+    }
+
+    
+     // MaxNumberOfUsers erhöhen
+     function editMaxNumOfUsers (int _GAid,int _newMaxNumberOfUsers) public onlyOwner(_GAid) {
+         require(GAs[_GAid].maxNumberOfUsers < _newMaxNumberOfUsers);
+        GAs[_GAid].maxNumberOfUsers = _newMaxNumberOfUsers; 
+     }
+        
+    
+    // hier wird ein neuer User hinzugefügt, kann auch Admin werden
+    function addUser (int _GAid, address _newUserAddress, bool isAdmin) public onlyOwner(_GAid) belowMaxUsers(_GAid) notAlreadyUser(_GAid, _newUserAddress) {
+        User newUser = GAs[_GAid].users[_newUserAddress];
+        newUser.userAddress = _newUserAddress;
+        newUser.isAdmin = isAdmin;
+        GAs[_GAid].numUsers++;
+    }
+    
+    // hier wird der current User geändert; valides Datum wird geprüft
+    function changeCurrentUser (int _GAid, address _oldCurrentUserAddress, address _newCurrentUserAddress, uint _fromDate, uint _untilDate) public onlyAdmin(_GAid) alreadyUser(_GAid, _newCurrentUserAddress) {
+        uint _today = now;
+        require (_fromDate > _today == true && _untilDate >= _fromDate == true);
+        GAs[_GAid];
+        require(GAs[_GAid].users[_oldCurrentUserAddress].isCurrentUser == true);
+        User oldCurrentUser = GAs[_GAid].users[_oldCurrentUserAddress];
+        oldCurrentUser.userAddress = _oldCurrentUserAddress;
+        oldCurrentUser.isCurrentUser = false;
+        User newCurrentUser = GAs[_GAid].users[_newCurrentUserAddress];
+        newCurrentUser.userAddress = _newCurrentUserAddress;
+        newCurrentUser.isCurrentUser = true;
+    }
+    
+    // normaler User wird Admin
+    function upgradeUserToAdmin (int _GAid, address _newAdminAddress) public onlyOwner(_GAid) alreadyUser(_GAid, _newAdminAddress) {
+        GAs[_GAid];
+        require(GAs[_GAid].users[_newAdminAddress].isAdmin != true);
+        User newAdmin = GAs[_GAid].users[_newAdminAddress];
+        newAdmin.userAddress = _newAdminAddress;
+        newAdmin.isAdmin = true;
+    }
+    
+    // Admin wird normaler User
+    function downgradeAdminToUser (int _GAid, address _AdminAddress) public onlyOwner(_GAid) alreadyUser(_GAid, _AdminAddress) {
+        GAs[_GAid];
+        require(GAs[_GAid].users[_AdminAddress].isOwner != true);
+        require(GAs[_GAid].users[_AdminAddress].isAdmin == true);
+        User noMoreAdmin = GAs[_GAid].users[_AdminAddress];
+        noMoreAdmin.userAddress = _AdminAddress;
+        noMoreAdmin.isAdmin = false;
+    }
